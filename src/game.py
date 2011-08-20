@@ -1,17 +1,10 @@
 import math, os, random, sys
 import pygame, pygame.gfxdraw
 
-N = 0
-E = 1
-S = 2
-W = 3
-
 SCALE = 4
 
-PI2 = math.pi * 2
-
-NUM_SCREENS_WIDE = 4
-NUM_SCREENS_TALL = 4
+NUM_SCREENS_WIDE = 5
+NUM_SCREENS_TALL = 5
 
 PIXEL_WIDTH = 1000
 PIXEL_HEIGHT = 700
@@ -28,6 +21,7 @@ BLACK = pygame.Color(0, 0, 0, 255)
 # ccw:     0->N  270->E    180->S   90->W
 # rot:    90->N    0->E    270->S  180->W
 # tra:  pi/2->N    0->E  3pi/2->S   pi->W
+PI2 = math.pi * 2
 def degrees_to_pi(deg):
     return PI2 * (-deg + 90) / 360.0
 
@@ -35,22 +29,22 @@ def get_dxdy(deg, dist):
     theta = degrees_to_pi(deg)
     return math.cos(theta) * dist, -math.sin(theta) * dist
 
-def scale_load(path, mult):
+def scale_load(path):
     s = pygame.image.load(path)
-    w = s.get_width() * mult
-    h = s.get_height() * mult
+    w = s.get_width() * SCALE
+    h = s.get_height() * SCALE
     return pygame.transform.scale(s, (w, h))
 
 class Rover(object):
     groups = [['aa', 'bb', 'cc', 'dd'], ['bd', 'ca', 'db', 'ac']]
 
-    def get_frame(self, suffix, scale):
-        return scale_load('gfx/rover-%s.png' % suffix, scale)
+    def get_frame(self, suffix):
+        return scale_load('gfx/rover-%s.png' % suffix)
 
     def __init__(self):
         self.frames = []
         for group in self.groups:
-            imgs = [self.get_frame(zz, SCALE) for zz in group]
+            imgs = [self.get_frame(zz) for zz in group]
             self.frames.append(imgs)
 
         self.frames.append(self.frames[0][2:4] + self.frames[0][0:2])
@@ -84,7 +78,11 @@ class Map(object):
     medium = pygame.Color(220, 90, 30, 255)
     light  = pygame.Color(255, 140, 70, 255)
 
-    kinds = [darker, dark, medium, light]
+    #kinds = [darker, dark, medium, light]
+    kinds = [darker, dark, dark, medium]
+    #kinds = [darker]
+
+    weighted = [light, light, light, light, medium, medium, dark]
 
     def __init__(self):
         self.img = pygame.Surface((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
@@ -92,6 +90,7 @@ class Map(object):
         self.img.fill(self.light)
         for h in range(0, NUM_SCREENS_TALL):
             for w in range(0, NUM_SCREENS_WIDE):
+                ## debugging colors
                 #r = (h + 1) * 51
                 #g = (w + 1) * 51
                 #b = ((h + w) % 2) * 100
@@ -99,20 +98,33 @@ class Map(object):
                 color = self.light
 
                 rect = pygame.Rect(w * PIXEL_WIDTH, h * PIXEL_HEIGHT, PIXEL_WIDTH, PIXEL_HEIGHT)
-                print 'putting %r in %r' % (color, rect)
 
                 self.img.fill(color, rect)
+                #self.snowscreen(rect)
 
-        self.wheelmarks = self.init_wheelmarks(SCALE)
+        self.wheelmarks = self.init_wheelmarks()
         self.rotate_wheelmarks(0)
 
-    def rotate_wheelmarks(self, angle):
-        self.curr_wms = [pygame.transform.rotate(wm, angle) for wm in self.wheelmarks]
+    def snowscreen(self, rect):
+        print 'snow', rect
+        for y in range(rect.top, rect.top + rect.h, 4):
+            for x in range(rect.left, rect.left + rect.w, 4):
+                color = random.choice(self.weighted)
+                pygame.gfxdraw.box(self.img, pygame.Rect(x, y, 4, 4), color)
 
-    def init_wheelmarks(self, scale):
+    def generate_altitude(self):
+        pass
+
+    def rotate_wheelmark(self, wm, angle):
+        return pygame.transform.rotate(wm, angle)
+
+    def rotate_wheelmarks(self, angle):
+        self.curr_wms = [self.rotate_wheelmark(wm, angle) for wm in self.wheelmarks]
+
+    def init_wheelmarks(self):
         wm = []
-        img = scale_load('gfx/rover-wheels.png', scale)
-        for i in range(0, 2):
+        img = scale_load('gfx/rover-wheels.png')
+        for i in range(0, 4):
             wm.append(self.create_wheelmark(img))
         return wm
 
@@ -120,9 +132,9 @@ class Map(object):
         img2 = img.copy()
         for y in range(0, img.get_height()):
             for x in range(0, img.get_width()):
-                xy = (x, y)
-                if img.get_at(xy) != BLACK: continue
-                img2.set_at(xy, random.choice(self.kinds))
+                if img.get_at((x, y)) != BLACK: continue
+                color = random.choice(self.kinds)
+                img2.set_at((x, y), color)
         return img2
 
     def get_wheelmark(self):
@@ -163,8 +175,8 @@ class Game(object):
 
         # rover stuff
         self.rover = Rover()
-        self.rx = 400
-        self.ry = 300
+        self.rx = 500
+        self.ry = 350
         self.rv = 0
         self.ra = 0
         self.curr_rover_img = pygame.transform.rotate(self.rover.get_img(), -self.ra)
@@ -186,42 +198,47 @@ class Game(object):
             self.adelta = 0
 
     def shift_map_left(self):
-        nx = self.rx - 500
+        nx = self.rx - 200
         if nx < 0:
+            #print 'big shift left (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.ox = nx + TOTAL_WIDTH
             self.rx += TOTAL_WIDTH
         else:
+            #print 'little shift left (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.ox = nx
         assert self.ox < TOTAL_WIDTH
 
     def shift_map_right(self):
-        nx = self.rx + 500
+        nx = self.rx - 800
         if nx > TOTAL_WIDTH:
+            #print 'big shift right (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.ox = nx - TOTAL_WIDTH
             self.rx -= TOTAL_WIDTH
         else:
+            #print 'little shift right (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.ox = nx
         assert self.ox >= 0
 
     def shift_map_up(self):
-        ny = self.ry - 300
+        ny = self.ry - 200
         if ny < 0:
-            print 'big shift up (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
+            #print 'big shift up (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.oy = ny + TOTAL_HEIGHT
             self.ry += TOTAL_HEIGHT
         else:
-            print 'little shift up (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
+            #print 'little shift up (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.oy = ny
+        assert self.ry >= self.oy + 200
         assert self.oy < TOTAL_HEIGHT, (self.oy, self.ry, TOTAL_HEIGHT)
 
     def shift_map_down(self):
-        ny = self.ry + 300
+        ny = self.ry - 500
         if ny > TOTAL_HEIGHT:
-            print 'big shift up (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
+            #print 'big shift down (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.oy = ny - TOTAL_HEIGHT
             self.ry -= TOTAL_HEIGHT
         else:
-            print 'little shift up (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
+            #print 'little shift down (ny=%r oy=%r ry=%r)' % (ny, self.oy, self.ry)
             self.oy = ny
         assert self.oy >= 0, (self.oy, 0)
 
@@ -232,19 +249,21 @@ class Game(object):
         img = self.rover.get_img(self.vdelta, self.adelta)
         self.curr_rover_img = pygame.transform.rotate(img, -self.ra)
 
-        self.map.rotate_wheelmarks(-self.ra)
-        self.map.track_wheelmarks(self.get_rover_rect())
+        if self.adelta:
+            self.map.rotate_wheelmarks(-self.ra)
+
+        if self.vdelta or self.adelta:
+            self.map.track_wheelmarks(self.get_rover_rect())
 
         if self.rx < self.ox + 200:
             self.shift_map_left()
         elif self.rx > self.ox + 800:
             self.shift_map_right()
-
+        
         if self.ry < self.oy + 200:
             self.shift_map_up()
         elif self.ry > self.oy + 500:
             self.shift_map_down()
-
 
     def move_rover(self):
         if self.vdelta == 0: return
@@ -257,13 +276,7 @@ class Game(object):
         self.ra = (self.ra + self.adelta) % 360
 
     def get_map_rect(self):
-        rect = pygame.Rect(self.ox,
-                           self.oy,
-                           PIXEL_WIDTH,
-                           PIXEL_HEIGHT)
-        assert rect.left >= 0, (rect, 0)
-        assert rect.right < VIRTUAL_WIDTH, (rect, rect.right, VIRTUAL_WIDTH)
-        return rect
+        return pygame.Rect(self.ox, self.oy, PIXEL_WIDTH, PIXEL_HEIGHT)
 
     def get_map_screen_rect(self):
         return pygame.Rect(0, 0, PIXEL_WIDTH, PIXEL_HEIGHT)
@@ -271,7 +284,6 @@ class Game(object):
     def draw_map(self):
         area = self.get_map_rect()
         dest = self.get_map_screen_rect()
-        if self.ox != 0: print 'MAP', dest, area
         self.screen.blit(self.map.img, dest, area)
 
     def get_rover_screen_rect(self):
@@ -288,7 +300,6 @@ class Game(object):
 
     def draw_rover(self):
         dest = self.get_rover_screen_rect()
-        if self.ox != 0: print 'ROVER', dest
         self.screen.blit(self.curr_rover_img, dest)
 
     def draw(self):
@@ -321,7 +332,7 @@ class Game(object):
 
         elif ev.type == pygame.KEYDOWN:
             if ev.key == pygame.K_ESCAPE:
-                print 'quitting now...'
+                #print 'quitting now...'
                 self.done = True
             elif ev.key == pygame.K_UP:
                 self.start_move(MOVE)
