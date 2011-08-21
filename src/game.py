@@ -1,4 +1,4 @@
-import math, os, random, sys
+import math, os, random, sys, time
 import pygame, pygame.gfxdraw
 
 try:
@@ -9,28 +9,38 @@ except:
 
 SCALE = 4
 
-#NUM_SCREENS_WIDE = 5
-#NUM_SCREENS_TALL = 5
-NUM_SCREENS_WIDE = 3
-NUM_SCREENS_TALL = 3
-
 PIXEL_WIDTH = 1000
 PIXEL_HEIGHT = 700
 
-#TOTAL_WIDTH = PIXEL_WIDTH * (NUM_SCREENS_WIDE - 1)
-#TOTAL_HEIGHT = PIXEL_HEIGHT * (NUM_SCREENS_TALL - 1)
-#VIRTUAL_WIDTH = PIXEL_WIDTH * NUM_SCREENS_WIDE
-#VIRTUAL_HEIGHT = PIXEL_HEIGHT * NUM_SCREENS_TALL
+#_size = 4096
+#TOTAL_WIDTH = _size
+#TOTAL_HEIGHT = _size
+#VIRTUAL_WIDTH = _size + PIXEL_WIDTH
+#VIRTUAL_HEIGHT = _size + PIXEL_HEIGHT
 
-_size = 4096
-
-TOTAL_WIDTH = _size
-TOTAL_HEIGHT = _size
-VIRTUAL_WIDTH = _size + PIXEL_WIDTH
-VIRTUAL_HEIGHT = _size + PIXEL_HEIGHT
+n = 3
+TOTAL_WIDTH = PIXEL_WIDTH * n
+TOTAL_HEIGHT = PIXEL_HEIGHT * n
+VIRTUAL_WIDTH = PIXEL_WIDTH * (n + 1)
+VIRTUAL_HEIGHT = PIXEL_HEIGHT * (n + 1)
 
 WHITE = pygame.Color(255, 255, 255, 255)
 BLACK = pygame.Color(0, 0, 0, 255)
+
+GOAL1_X = PIXEL_WIDTH + 234
+GOAL1_Y = PIXEL_HEIGHT * 2 + 452
+
+GOAL2A_X = PIXEL_WIDTH * 2 + 400
+GOAL2A_Y = 500
+
+GOAL2B_X = PIXEL_WIDTH * 2 + 560
+GOAL2B_Y = 660
+
+GOAL2C_X = PIXEL_WIDTH * 2 + 400
+GOAL2C_Y = 500
+
+GOAL2D_X = PIXEL_WIDTH * 2 + 560
+GOAL2D_Y = 660
 
 # deg:     0->N   90->E    180->S  270->W
 # ccw:     0->N  270->E    180->S   90->W
@@ -51,35 +61,22 @@ def scale_load(path):
     return pygame.transform.scale(s, (w, h))
 
 class Rock(object):
-    def __init__(self, x, y, path):
-        self.img = scale_load(path)
+    @classmethod
+    def frompath(self, x, y, path, pts):
+        img = scale_load(path)
+        return Rock(x, y, img, pts)
+
+    def __init__(self, x, y, img, pts):
+        self.img = img
         self.x = x
         self.y = y
         self.w = 32
         self.h = 32
+        self.pts = pts
+        self.seen = False
+        self.panel = False
     def get_img(self):
         return self.img
-
-class GlowingRock(object):
-    def __init__(self, x, y, paths):
-        self.frames = []
-        for path in paths:
-            self.frames.append(scale_load(path))
-        self.i = 0
-        self.ticks = 0
-        self.x = x
-        self.y = y
-        self.w = 32
-        self.h = 32
-        self.n = len(self.frames)
-
-    def get_img(self):
-        if self.ticks == 4:
-            self.ticks = 0
-            self.i = (self.i + 1) % self.n
-        else:
-            self.ticks += 1
-        return self.frames[self.i]
 
 class Rover(object):
     groups = [['aa', 'bb', 'cc', 'dd'], ['bd', 'ca', 'db', 'ac']]
@@ -135,24 +132,15 @@ class Map(object):
             self.img = pygame.image.load('save/terrain.png')
         else:
             self.img = pygame.Surface((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
-    
             self.img.fill(self.light)
-
-            #for h in range(0, NUM_SCREENS_TALL):
-            #    for w in range(0, NUM_SCREENS_WIDE):
-            #        ## debugging colors
-            #        #r = (h + 1) * 51
-            #        #g = (w + 1) * 51
-            #        #b = ((h + w) % 2) * 100
-            #        #color = pygame.Color(r, g, b, 255)
-            #        color = self.light
-            #        rect = pygame.Rect(w * PIXEL_WIDTH, h * PIXEL_HEIGHT, PIXEL_WIDTH, PIXEL_HEIGHT)
-            #        self.img.fill(color, rect)
-            #        #self.snowscreen(rect)
-
-            self.generate_altitude()
+            self.snowscreen()
 
             pygame.image.save(self.img, 'save/terrain.png')
+
+        panel = scale_load('gfx/panel.png')
+
+        self.panelrect = pygame.Rect(PIXEL_WIDTH + 234, PIXEL_HEIGHT + 452, 32, 32)
+        self.img.blit(panel, self.panelrect)
 
         self.wheelmarks = self.init_wheelmarks()
         self.rotate_wheelmarks(0)
@@ -172,86 +160,6 @@ class Map(object):
         area = pygame.Rect(0, 0, VIRTUAL_WIDTH, PIXEL_HEIGHT)
         dest = pygame.Rect(0, TOTAL_HEIGHT, VIRTUAL_WIDTH, PIXEL_HEIGHT)
         self.img.blit(self.img, dest, area)
-
-    def generate_altitude(self):
-        self.snowscreen()
-        return
-
-        size = 2
-        while size < TOTAL_WIDTH / 2:
-            size *= 2
-
-        print 'generating altitude, size=%r...' % size
-
-        # allocate 4097x4097 numbers (16 million of them!)
-        data = []
-        for y in range(0, (size + 1)):
-            data.append([0] * (size + 1))
-
-        x1 = y1 = 0
-        x2 = y2 = size
-
-        for y in (y1, y2):
-            for x in (x1, x2):
-                data[y][x] = random.randint(0, 100)
-        self.diasquare(data, x1, y1, x2, y2, -10000, 10000)
-
-        zmin = min([min(row) for row in data])
-        zmax = max([max(row) for row in data])
-        zrange = zmax - zmin
-
-        def scale(z, nmin, nmax):
-            c = ((z - zmin) * 150) / zrange + random.randint(-50, 50)
-            return min(nmax, max(nmin, c))
-
-        for y in range(0, TOTAL_HEIGHT / 2):
-            ay = y * 2
-            for x in range(0, TOTAL_WIDTH / 2):
-                ax = x * 2
-
-                r = scale(100 + data[y][x], 100, 255)
-                g = scale(30 + data[y][x], 30, 120)
-                b = scale(data[y][x], 10, 70)
-
-                color = pygame.Color(r, g, b, 255)
-                pygame.gfxdraw.box(self.img, pygame.Rect(ax, ay, 2, 2), color)
-
-        # copy to "redundant" area
-        self.sync_doubled_area()
-        #area = pygame.Rect(0, 0, PIXEL_WIDTH, VIRTUAL_HEIGHT)
-        #dest = pygame.Rect(TOTAL_WIDTH, 0, PIXEL_WIDTH, VIRTUAL_HEIGHT)
-        #self.img.blit(self.img, dest, area)
-        #
-        #area = pygame.Rect(0, 0, TOTAL_WIDTH, PIXEL_HEIGHT)
-        #dest = pygame.Rect(0, TOTAL_HEIGHT, TOTAL_WIDTH, PIXEL_HEIGHT)
-        #self.img.blit(self.img, dest, area)
-        print 'done'
-
-    def avg(self, xs, rmin, rmax):
-        return sum(xs) / len(xs) + random.randint(rmin, rmax) + random.randint(-10, 10)
-
-    def diasquare(self, data, x1, y1, x2, y2, rmin, rmax):
-        dx, dy = x2 - x1, y2 - y1
-        assert dx == dy
-
-        # get the average for the middle of the square
-        my, mx = y1 + dy / 2, x1 + dx / 2
-        pts = [data[y1][x1], data[y1][x2], data[y2][x1], data[y2][x2]]
-        data[my][mx] = self.avg(pts, rmin, rmax)
-
-        # using the square find the diamond
-        for y in (y1, y2):
-            data[y][mx] = self.avg([data[y][x1], data[y][x2], data[my][mx]], rmin, rmax)
-        for x in (x1, x2):
-            data[my][x] = self.avg([data[y1][x], data[y2][x], data[my][mx]], rmin, rmax)
-
-        if dx >= 4:
-            rmin /= 2
-            rmax /= 2
-            self.diasquare(data, x1, y1, mx, my, rmin, rmax)
-            self.diasquare(data, mx, y1, x2, my, rmin, rmax)
-            self.diasquare(data, x1, my, mx, y2, rmin, rmax)
-            self.diasquare(data, mx, my, x2, y2, rmin, rmax)
 
     def rotate_wheelmark(self, wm, angle):
         return pygame.transform.rotate(wm, angle)
@@ -310,23 +218,56 @@ class Game(object):
         if color is None: color = WHITE
         return self.bigfont.render(s, False, color)
 
+    def init_rocks(self):
+        nrocks = 40
+
+        imgs = [scale_load('gfx/rock%d.png' % i) for i in range(1, 7)]
+        pts = [10, 10, 10, 10, 25, 25, 25, 50, 50, 100, 200]
+        self.rocks = [
+            Rock.frompath(PIXEL_WIDTH + 234 + 16, PIXEL_HEIGHT + 452 + 16, 'gfx/cover.png', 1000)
+        ]
+
+        for i in range(0, nrocks):
+            while True:
+                x = random.randint(0, TOTAL_WIDTH)
+                y = random.randint(0, TOTAL_HEIGHT)
+                rect = pygame.Rect(x - 20, y - 20, 40, 40) 
+                other = self.find_rock(rect)
+                if other is None:
+                    break
+
+            img = random.choice(imgs)
+            pt = random.choice(pts)
+            self.rocks.append(Rock(x, y, img, pt))
+
+        self.maxscore = min(9999, sum([rock.pts for rock in self.rocks]))
+
     def __init__(self):
         self.done = False
         self.screen = None
         self.clock = None
 
         # text stuff
+        self.banner = True
+
         self.font = pygame.font.Font('font/emulator.ttf', 32, bold=True)
         self.bigfont = pygame.font.Font('font/emulator.ttf', 96, bold=True)
 
-        self.scoretxt = self.mktext("SCORE 1000")
+        self.score = 0
+        self.scoretxt = self.mktext("SCORE %8d" % 0)
         self.clawtxt = self.mktext("CLAW EMPTY")
-        self.statustxt = self.mktext("STATUS NORMAL")
+
+        self.statustxt = None
+        self.statust = pygame.time.get_ticks()
+
+        self.msgtxt = None
+        self.msgt = pygame.time.get_ticks()
 
         self.bannertxt = self.mkbigtext("RED ROVER")
         self.helptxt1 = self.mktext("PRESS ENTER TO PLAY")
         self.helptxt2 = self.mktext("ARROWS TO MOVE")
-        self.helptxt3 = self.mktext("SPACE TO USE CLAW ")
+        self.helptxt3 = self.mktext("SPACE TO USE CLAW")
+        self.helptxt4 = self.mktext("CTRL TO CRUSH ROCKS ")
 
         # map stuff
         self.map = Map()
@@ -334,11 +275,7 @@ class Game(object):
         self.oy = 0
 
         # rocks
-        self.rocks = [
-            Rock(200, 200, 'gfx/rock1.png'),
-            Rock(450, 600, 'gfx/rock2.png'),
-            Rock(180, 700, 'gfx/rock3.png'),
-        ]
+        self.init_rocks()
 
         # rover stuff
         self.rover = Rover()
@@ -352,6 +289,10 @@ class Game(object):
         # player stuff
         self.vdelta = 0
         self.adelta = 0
+
+    def addpoints(self, pts):
+        self.score = min(9999, self.score + pts)
+        self.scoretxt = self.mktext("SCORE %4d" % self.score)
 
     def start_move(self, delta):
         self.vdelta = delta
@@ -493,10 +434,95 @@ class Game(object):
         self.screen.blit(self.curr_rover_img, dest)
 
     def draw_text(self):
-        self.screen.blit(self.scoretxt, pygame.Rect(0, 0, 40, 40))
-        self.screen.blit(self.clawtxt, pygame.Rect(620, 0, 40, 40))
-        self.screen.blit(self.statustxt, pygame.Rect(0, 650, 40, 40))
-        #self.screen.blit(self.statustxt, pygame.Rect(0, 650, 40, 40))
+        if self.banner:
+            self.screen.blit(self.bannertxt, (80, 80))
+            self.screen.blit(self.helptxt1, (200, 200))
+            self.screen.blit(self.helptxt2, (200, 500))
+            self.screen.blit(self.helptxt3, (200, 550))
+        else:
+            self.screen.blit(self.scoretxt, (0, 0))
+            self.screen.blit(self.clawtxt, (620, 0))
+
+            if self.statustxt:
+                self.screen.blit(self.statustxt, (0, 44))
+                if (pygame.time.get_ticks() - self.statust) > 3000:
+                    self.statustxt = None
+
+            if self.msgtxt:
+                self.screen.blit(self.msgtxt, (0, 650))
+                if (pygame.time.get_ticks() - self.msgt) > 3000:
+                    self.msgtxt = None
+
+    def pick_up_rock(self, rock):
+        if not rock.seen:
+            rock.seen = True
+            self.setstatus("ANALYZING ROCK! %+d POINTS!" % rock.pts, pygame.Color(0, 255, 0))
+            self.addpoints(rock.pts)
+
+        self.curr_rock = rock
+        rect = self.get_rock_rect(rock)
+        if self.map.panelrect.colliderect(rect):
+            self.setmsg("HOW DID THAT GET HERE?")
+        else:
+            for y in range(0, rect.height):
+                for x in range(0, rect.width):
+                    if rock.img.get_at((x, y)).a == 0: continue
+                    xy = int(rock.x - rock.w / 2 + x), int(rock.y - rock.h / 2 + y)
+                    color = random.choice(self.map.kinds)
+                    self.map.img.set_at(xy, color)
+
+        self.map.sync_doubled_area()
+        self.rocks.remove(rock)
+        self.clawtxt = self.mktext("HOLDING ROCK")
+
+    def drop_rock(self):
+        self.clawtxt = self.mktext("CLAW EMPTY")
+        self.curr_rock.x = int(self.rx) % TOTAL_WIDTH
+        self.curr_rock.y = int(self.ry) % TOTAL_HEIGHT
+        self.rocks.append(self.curr_rock)
+
+        rect = self.get_rock_rect(self.curr_rock)
+        if not self.curr_rock.panel and self.map.panelrect.colliderect(rect):
+            self.setstatus("PUSHED THE BUTTON", pygame.Color(0, 255, 0))
+            self.setmsg("WHAT WAS THAT SOUND!?")
+        else:
+            self.setstatus("DROPPED THE ROCK", pygame.Color(255, 255, 255))
+
+        self.curr_rock = None
+
+    def crush_rock(self):
+        self.clawtxt = self.mktext("CLAW EMPTY")
+        self.setstatus("CRUSHED THE ROCK", pygame.Color(255, 255, 255))
+        self.curr_rock = None
+
+    def get_claw_rect(self):
+        return pygame.Rect(self.rx - 32, self.ry - 32, 64, 64)
+
+    def get_drop_rect(self):
+        return pygame.Rect(self.rx - 16, self.ry - 16, 32, 32)
+
+    def find_rock(self, rect):
+        for rock in self.rocks:
+            rect2 = self.get_rock_rect(rock)
+            if rect.colliderect(rect2):
+                return rock
+        return None
+
+    def engage_claw(self):
+        if self.curr_rock:
+            rect = self.get_drop_rect()
+            rock = self.find_rock(rect)
+            if rock:
+                self.setstatus("ALREADY A ROCK THERE", pygame.Color(255, 255, 0))
+            else:
+                self.drop_rock()
+        else:
+            rect = self.get_claw_rect()
+            rock = self.find_rock(rect)
+            if rock:
+                self.pick_up_rock(rock)
+            else:
+                self.setstatus("I DON'T SEE A ROCK", pygame.Color(255, 255, 0))
 
     def draw(self):
         area = self.draw_map()
@@ -506,9 +532,19 @@ class Game(object):
 
     def draw_banner(self):
         self.screen.blit(self.bannertxt, (80, 80))
-        self.screen.blit(self.helptxt1, (200, 500))
-        self.screen.blit(self.helptxt2, (200, 550))
-        self.screen.blit(self.helptxt3, (200, 600))
+        self.screen.blit(self.helptxt1, (200, 200))
+        self.screen.blit(self.helptxt2, (200, 500))
+        self.screen.blit(self.helptxt3, (200, 550))
+        self.screen.blit(self.helptxt4, (200, 600))
+
+    def setmsg(self, s):
+        self.msgtxt = self.mktext('"' + s + '"', pygame.Color(0, 0, 255))
+        self.msgt = pygame.time.get_ticks()
+
+    def setstatus(self, s, color=None):
+        if color is None: color = pygame.Color(0, 255, 0)
+        self.statustxt = self.mktext(s, color)
+        self.statust = pygame.time.get_ticks()
 
     def run(self):
 
@@ -523,16 +559,29 @@ class Game(object):
         self.draw_banner()
         pygame.display.flip()
 
-        banner = True
-        while banner:
+        while self.banner:
             self.clock.tick(60)
             for ev in pygame.event.get():
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_RETURN:
-                    banner = False
+                    self.banner = False
                     break
+
+        msgs = [
+            (5000, "TIME TO GO TO WORK"),
+            (15000, "THIS RESEARCH WON'T DO ITSELF"),
+            (35000, "SURE IS LONELY OUT HERE"),
+            (50000, "MISSION CONTROL? YOU THERE?"),
+            (80000, "I HAVE A STRANGE FEELING"),
+        ]
+
+        self.setstatus("DEPLOY CLAW WHEN OVER ROCKS")
 
         while not self.done:
             self.clock.tick(60)
+
+            if self.msgtxt is None and msgs and msgs[0][0] < pygame.time.get_ticks():
+                self.setmsg(msgs[0][1])
+                del msgs[0]
 
             for event in pygame.event.get():
                 self.handle(event)
@@ -552,10 +601,9 @@ class Game(object):
 
         elif ev.type == pygame.KEYDOWN:
             if ev.key == pygame.K_ESCAPE:
-                #print 'quitting now...'
                 self.done = True
             elif ev.key == pygame.K_UP:
-                self.start_move(MOVE)
+                self.start_move(MOVE * 1.5)
             elif ev.key == pygame.K_DOWN:
                 self.start_move(-MOVE)
             elif ev.key == pygame.K_LEFT:
@@ -563,13 +611,14 @@ class Game(object):
             elif ev.key == pygame.K_RIGHT:
                 self.start_turn(ANGLE)
 
-            elif ev.key == pygame.K_SPACE:
-                if self.curr_rock is None:
-                    self.curr_rock = True
-                    self.clawtxt = self.mktext("HOLDING ROCK")
+            elif ev.key == pygame.K_LCTRL:
+                if self.curr_rock:
+                    self.crush_rock()
                 else:
-                    self.curr_rock = None
-                    self.clawtxt = self.mktext("CLAW EMPTY")
+                    self.setstatus("NOT HOLDING A ROCK", pygame.Color(255, 255, 0))
+
+            elif ev.key == pygame.K_SPACE:
+                self.engage_claw()
 
             elif ev.key == pygame.K_MINUS:
                 v = pygame.mixer.music.get_volume()
@@ -582,7 +631,7 @@ class Game(object):
 
         elif ev.type == pygame.KEYUP:
             if ev.key == pygame.K_UP:
-                self.end_move(MOVE)
+                self.end_move(MOVE * 1.5)
             elif ev.key == pygame.K_DOWN:
                 self.end_move(-MOVE)
             elif ev.key == pygame.K_LEFT:
