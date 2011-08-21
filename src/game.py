@@ -128,7 +128,7 @@ class Map(object):
     weighted = [light, light, light, light, medium, medium, dark]
 
     def __init__(self):
-        if False and os.path.exists('save/terrain.png'):
+        if os.path.exists('save/terrain.png'):
             self.img = pygame.image.load('save/terrain.png')
         else:
             self.img = pygame.Surface((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
