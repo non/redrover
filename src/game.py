@@ -312,7 +312,11 @@ class Game(object):
         self.oy = 0
 
         # rocks
-        self.rocks = [Rock(200, 200, 'gfx/rock1.png')]
+        self.rocks = [
+            Rock(200, 200, 'gfx/rock1.png'),
+            Rock(450, 600, 'gfx/rock2.png'),
+            Rock(180, 700, 'gfx/rock3.png'),
+        ]
 
         # rover stuff
         self.rover = Rover()
@@ -426,23 +430,28 @@ class Game(object):
         area = self.get_map_rect()
         dest = self.get_map_screen_rect()
         self.screen.blit(self.map.img, dest, area)
+        return area
 
-    def get_rock_screen_rect(self, rock):
+    def get_rock_rect(self, rock):
         w2, h2 = rock.w / 2, rock.h / 2
         left, top = rock.x, rock.y
         if left < PIXEL_WIDTH and self.ox > PIXEL_WIDTH:
             left += TOTAL_WIDTH
         if top < PIXEL_HEIGHT and self.oy > PIXEL_HEIGHT:
             top += TOTAL_HEIGHT
-        rect = pygame.Rect(left - self.ox - w2, top - self.oy - h2, rock.w, rock.h)
-        #print left, top, self.ox, self.oy, TOTAL_WIDTH, TOTAL_HEIGHT, rect
+        rect = pygame.Rect(left - w2, top - h2, rock.w, rock.h)
         return rect
 
-    def draw_rocks(self):
+    def get_rock_screen_rect(self, rock):
+        return self.get_rock_rect(rock).move(-self.ox, -self.oy)
+
+    def draw_rocks(self, area):
         for rock in self.rocks:
-            dest = self.get_rock_screen_rect(rock)
-            img = rock.get_img()
-            self.screen.blit(img, dest)
+            rect = self.get_rock_rect(rock)
+            #print area, dest
+            if area.colliderect(rect):
+                img = rock.get_img()
+                self.screen.blit(img, rect.move(-self.ox, -self.oy))
 
     def get_rover_screen_rect(self):
         w = self.curr_rover_img.get_width()
@@ -461,17 +470,36 @@ class Game(object):
         self.screen.blit(self.curr_rover_img, dest)
 
     def draw(self):
-        self.draw_map()
-        self.draw_rocks()
+        area = self.draw_map()
+        self.draw_rocks(area)
         self.draw_rover()
+
+    def draw_banner(self):
+        pass
 
     def run(self):
         pygame.init()
+        pygame.mixer.init(frequency=44100)
+
+        pygame.mixer.music.load('snd/redrover.mp3')
+        pygame.mixer.music.play(-1)
+
         flags = 0
         self.screen = pygame.display.set_mode((PIXEL_WIDTH, PIXEL_HEIGHT), flags)
         self.clock = pygame.time.Clock()
 
         self.draw()
+        self.draw_banner()
+        pygame.display.flip()
+
+        banner = True
+        while banner:
+            self.clock.tick(60)
+            for ev in pygame.event.get():
+                if ev.type == pygame.KEYDOWN and ev.key == pygame.K_RETURN:
+                    banner = False
+                    break
+
         while not self.done:
             self.clock.tick(60)
 
@@ -481,6 +509,8 @@ class Game(object):
 
             self.draw()
             pygame.display.flip()
+
+        pygame.mixer.fadeout(100)
 
     def handle(self, ev):
         MOVE = 2
@@ -501,6 +531,15 @@ class Game(object):
                 self.start_turn(-ANGLE)
             elif ev.key == pygame.K_RIGHT:
                 self.start_turn(ANGLE)
+
+            elif ev.key == pygame.K_MINUS:
+                v = pygame.mixer.music.get_volume()
+                v = max(0.0, v - 0.1)
+                pygame.mixer.music.set_volume(v)
+            elif ev.key == pygame.K_EQUALS or ev.key == pygame.K_PLUS:
+                v = pygame.mixer.music.get_volume()
+                v = max(0.0, v + 0.1)
+                pygame.mixer.music.set_volume(v)
 
         elif ev.type == pygame.KEYUP:
             if ev.key == pygame.K_UP:
