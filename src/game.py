@@ -29,7 +29,7 @@ TOTAL_HEIGHT = _size
 VIRTUAL_WIDTH = _size + PIXEL_WIDTH
 VIRTUAL_HEIGHT = _size + PIXEL_HEIGHT
 
-
+WHITE = pygame.Color(255, 255, 255, 255)
 BLACK = pygame.Color(0, 0, 0, 255)
 
 # deg:     0->N   90->E    180->S  270->W
@@ -301,10 +301,32 @@ class Map(object):
         self.img.blit(wm, rect.move(0, dy))
 
 class Game(object):
+
+    def mktext(self, s, color=None):
+        if color is None: color = WHITE
+        return self.font.render(s, False, color)
+
+    def mkbigtext(self, s, color=None):
+        if color is None: color = WHITE
+        return self.bigfont.render(s, False, color)
+
     def __init__(self):
         self.done = False
         self.screen = None
         self.clock = None
+
+        # text stuff
+        self.font = pygame.font.Font('font/emulator.ttf', 32, bold=True)
+        self.bigfont = pygame.font.Font('font/emulator.ttf', 96, bold=True)
+
+        self.scoretxt = self.mktext("SCORE 1000")
+        self.clawtxt = self.mktext("CLAW EMPTY")
+        self.statustxt = self.mktext("STATUS NORMAL")
+
+        self.bannertxt = self.mkbigtext("RED ROVER")
+        self.helptxt1 = self.mktext("PRESS ENTER TO PLAY")
+        self.helptxt2 = self.mktext("ARROWS TO MOVE")
+        self.helptxt3 = self.mktext("SPACE TO USE CLAW ")
 
         # map stuff
         self.map = Map()
@@ -325,6 +347,7 @@ class Game(object):
         self.rv = 0
         self.ra = 0
         self.curr_rover_img = pygame.transform.rotate(self.rover.get_img(), -self.ra)
+        self.curr_rock = None
 
         # player stuff
         self.vdelta = 0
@@ -469,20 +492,28 @@ class Game(object):
         dest = self.get_rover_screen_rect()
         self.screen.blit(self.curr_rover_img, dest)
 
+    def draw_text(self):
+        self.screen.blit(self.scoretxt, pygame.Rect(0, 0, 40, 40))
+        self.screen.blit(self.clawtxt, pygame.Rect(620, 0, 40, 40))
+        self.screen.blit(self.statustxt, pygame.Rect(0, 650, 40, 40))
+        #self.screen.blit(self.statustxt, pygame.Rect(0, 650, 40, 40))
+
     def draw(self):
         area = self.draw_map()
         self.draw_rocks(area)
         self.draw_rover()
+        self.draw_text()
 
     def draw_banner(self):
-        pass
+        self.screen.blit(self.bannertxt, (80, 80))
+        self.screen.blit(self.helptxt1, (200, 500))
+        self.screen.blit(self.helptxt2, (200, 550))
+        self.screen.blit(self.helptxt3, (200, 600))
 
     def run(self):
-        pygame.init()
-        pygame.mixer.init(frequency=44100)
 
         pygame.mixer.music.load('snd/redrover.mp3')
-        pygame.mixer.music.play(-1)
+        pygame.mixer.music.play(-1) # FIXME
 
         flags = 0
         self.screen = pygame.display.set_mode((PIXEL_WIDTH, PIXEL_HEIGHT), flags)
@@ -510,7 +541,7 @@ class Game(object):
             self.draw()
             pygame.display.flip()
 
-        pygame.mixer.fadeout(100)
+        pygame.mixer.fadeout(300)
 
     def handle(self, ev):
         MOVE = 2
@@ -531,6 +562,14 @@ class Game(object):
                 self.start_turn(-ANGLE)
             elif ev.key == pygame.K_RIGHT:
                 self.start_turn(ANGLE)
+
+            elif ev.key == pygame.K_SPACE:
+                if self.curr_rock is None:
+                    self.curr_rock = True
+                    self.clawtxt = self.mktext("HOLDING ROCK")
+                else:
+                    self.curr_rock = None
+                    self.clawtxt = self.mktext("CLAW EMPTY")
 
             elif ev.key == pygame.K_MINUS:
                 v = pygame.mixer.music.get_volume()
@@ -553,5 +592,9 @@ class Game(object):
 
 
 if __name__ == "__main__":
+    pygame.init()
+    pygame.font.init()
+    pygame.mixer.init(frequency=44100)
+
     g = Game()
     g.run()
