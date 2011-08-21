@@ -2,4 +2,14 @@ Red Rover
 
 by Erik Osheim
 
-Requires Python and Pygame.
+    You are a scientific rover robot. You have been sent (alone) to a distant
+    planet to analyze rocks. Earn points by analyzing rocks.
+    
+    There is no plan to rescue you upon completion of your mission.
+
+
+Requires Python and Pygame. Play the game by running ./play or using python to
+run src/game.py.
+
+Use arrow keys to move the rover, space to pick up (and drop) rocks to analyze.
+Held rocks may also be pulverized using the control key.
