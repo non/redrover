@@ -17,3 +17,4 @@ Controls:
     control    - destroy rock currently being held
     tab        - toggle full screen
     +/-        - increase/decrease music volume
+    esc        - quit
