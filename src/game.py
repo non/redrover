@@ -139,13 +139,16 @@ class Map(object):
 
             pygame.image.save(self.img, 'save/terrain.png')
 
-        panel = scale_load('gfx/panel.png')
-
+        self.panel = scale_load('gfx/panel.png')
         self.panelrect = pygame.Rect(GOAL1_X, GOAL1_Y, 32, 32)
-        self.img.blit(panel, self.panelrect)
+        #self.img.blit(self.panel, self.panelrect)
+        self.blitpanel()
 
         self.wheelmarks = self.init_wheelmarks()
         self.rotate_wheelmarks(0)
+
+    def blitpanel(self):
+        self.img.blit(self.panel, self.panelrect)
 
     def snowscreen(self):
         for y in range(0, TOTAL_HEIGHT, 4):
@@ -210,6 +213,9 @@ class Map(object):
         self.img.blit(wm, rect.move(dx, 0))
         self.img.blit(wm, rect.move(0, dy))
 
+        if self.panelrect.colliderect(rect):
+            self.blitpanel()
+
 class Game(object):
 
     def mktext(self, s, color=None):
@@ -225,25 +231,29 @@ class Game(object):
         self.map.img.set_at((x, y), color)
 
     def init_rocks(self):
-        nrocks = 40
+        nrocks = 20
 
         imgs = [scale_load('gfx/rock%d.png' % i) for i in range(1, 7)]
         pts = [10, 10, 10, 10, 25, 25, 25, 50, 50, 100, 200]
         gem = scale_load('gfx/panel.png')
         self.rocks = [
-            #Rock.frompath(PIXEL_WIDTH + 234 + 16, PIXEL_HEIGHT + 452 + 16, 'gfx/cover.png', 1000)
             Rock.frompath(GOAL1_X + 16, GOAL1_Y + 16, 'gfx/cover.png', 1000),
-            Rock.frompath(GOAL2_X + 16 + 500, GOAL2_Y + 16 - 350, 'gfx/gem.png', 2000),
-
-            Rock(GOAL2_X + 16 + 100, GOAL2_Y + 16, imgs[0], 100),
-            Rock(GOAL2_X + 16 - 100, GOAL2_Y + 16, imgs[2], 100),
-            Rock(GOAL2_X + 16, GOAL2_Y + 16 + 100, imgs[3], 100),
-            Rock(GOAL2_X + 16, GOAL2_Y + 16 - 100, imgs[5], 100),
-
-            Rock(GOAL2_X + 16 + 70, GOAL2_Y + 16 + 70, imgs[1], 100),
-            Rock(GOAL2_X + 16 - 70, GOAL2_Y + 16 + 70, imgs[0], 100),
-            Rock(GOAL2_X + 16 + 70, GOAL2_Y + 16 - 70, imgs[4], 100),
-            Rock(GOAL2_X + 16 - 70, GOAL2_Y + 16 - 70, imgs[2], 100),
+            Rock.frompath(GOAL2_X + 16 + 170, GOAL2_Y + 16 + 700, 'gfx/gem.png', 2000),
+            
+            Rock(GOAL2_X + 16 + 100, GOAL2_Y + 16, imgs[0], 50),
+            Rock(GOAL2_X + 16 - 100, GOAL2_Y + 16, imgs[2], 50),
+            Rock(GOAL2_X + 16, GOAL2_Y + 16 + 100, imgs[3], 50),
+            Rock(GOAL2_X + 16, GOAL2_Y + 16 - 100, imgs[5], 50),
+            
+            Rock(GOAL2_X + 16 + 150, GOAL2_Y + 16, imgs[4], 50),
+            Rock(GOAL2_X + 16 - 150, GOAL2_Y + 16, imgs[4], 50),
+            Rock(GOAL2_X + 16, GOAL2_Y + 16 + 150, imgs[1], 50),
+            Rock(GOAL2_X + 16, GOAL2_Y + 16 - 150, imgs[5], 50),
+            
+            Rock(GOAL2_X + 16 + 70, GOAL2_Y + 16 + 70, imgs[1], 50),
+            Rock(GOAL2_X + 16 - 70, GOAL2_Y + 16 + 70, imgs[0], 50),
+            Rock(GOAL2_X + 16 + 70, GOAL2_Y + 16 - 70, imgs[4], 50),
+            Rock(GOAL2_X + 16 - 70, GOAL2_Y + 16 - 70, imgs[2], 50),
         ]
         self.rocks[0].panel = True
         self.rocks[1].gem = True
@@ -260,6 +270,8 @@ class Game(object):
                 x = random.randint(0, TOTAL_WIDTH)
                 y = random.randint(0, TOTAL_HEIGHT)
                 rect = pygame.Rect(x - 20, y - 20, 40, 40) 
+                if self.signalrect.colliderect(rect):
+                    continue
                 other = self.find_rock(rect)
                 if other is None:
                     break
@@ -294,10 +306,13 @@ class Game(object):
         self.msgt = pygame.time.get_ticks()
 
         self.bannertxt = self.mkbigtext("RED ROVER")
+        self.authortxt = self.mktext("BY ERIK OSHEIM")
+
         self.helptxt1 = self.mktext("PRESS ENTER TO PLAY")
         self.helptxt2 = self.mktext("ARROWS TO MOVE")
         self.helptxt3 = self.mktext("SPACE TO USE CLAW")
         self.helptxt4 = self.mktext("CTRL TO CRUSH ROCKS ")
+        self.helptxt5 = self.mktext("ESC TO QUIT ")
 
         # map stuff
         self.map = Map()
@@ -305,6 +320,7 @@ class Game(object):
         self.oy = 0
 
         # rocks
+        self.signalrect = pygame.Rect(GOAL2_X, GOAL2_Y, 32, 32)
         self.init_rocks()
 
         # rover stuff
@@ -367,7 +383,6 @@ class Game(object):
         self.door_text5 = self.mkbigtext("THE END")
 
         self.signal_placed = 0
-        self.signalrect = pygame.Rect(GOAL2_X, GOAL2_Y, 32, 32)
         self.ship_summoned = False
         self.ship_ending = False
 
@@ -378,10 +393,22 @@ class Game(object):
         self.ship_text4 = self.mktext("FOR SCIENCE!", BLACK)
         self.ship_text5 = self.mkbigtext("THE END", BLACK)
 
+        self.points_ending = False
+
+        self.pts_text0 = self.mktext("YOU'RE FINISHED!", self.map.darker)
+        self.pts_text1 = self.mktext("YOU'VE ANALYZED EVERY ROCK", self.map.darker)
+        self.pts_text2 = self.mktext("AND KNOW THEM BY SIGHT.", self.map.darker)
+        self.pts_text3 = self.mktext("YOU SACRIFICED YOURSELF...", self.map.darker)
+        self.pts_text4 = self.mktext("FOR SCIENCE!", self.map.darker)
+        self.pts_text5 = self.mkbigtext("THE END", self.map.darker)
 
     def addpoints(self, pts):
         self.score = min(9999, self.score + pts)
         self.scoretxt = self.mktext("SCORE %4d" % self.score)
+
+        if self.score == self.maxscore:
+            print 'SCORE!!!'
+            self.points_ending = True
 
     def start_move(self, delta):
         self.vdelta = delta
@@ -465,7 +492,7 @@ class Game(object):
             self.shift_map_down()
 
         if self.door_opened and self.door_win_rect.colliderect(rect):
-            print 'DOOR: YOU WIN!!!!!'
+            #print 'DOOR: YOU WIN!!!!!'
             self.door_ending = True
 
     def move_rover(self):
@@ -529,10 +556,13 @@ class Game(object):
 
     def draw_text(self):
         if self.banner:
-            self.screen.blit(self.bannertxt, (80, 80))
+            self.screen.blit(self.bannertxt, (80, 40))
+            self.screen.blit(self.authortxt, (260, 150))
             self.screen.blit(self.helptxt1, (200, 200))
-            self.screen.blit(self.helptxt2, (200, 500))
-            self.screen.blit(self.helptxt3, (200, 550))
+            self.screen.blit(self.helptxt2, (200, 450))
+            self.screen.blit(self.helptxt3, (200, 500))
+            self.screen.blit(self.helptxt4, (200, 550))
+            self.screen.blit(self.helptxt5, (200, 600))
         else:
             self.screen.blit(self.scoretxt, (0, 0))
             self.screen.blit(self.clawtxt, (620, 0))
@@ -552,6 +582,8 @@ class Game(object):
             rock.seen = True
             if rock.panel:
                 self.setstatus("ANALYZING PANEL! %+d POINTS!" % rock.pts, pygame.Color(0, 255, 0))
+            elif rock.gem:
+                self.setstatus("ANALYZING GEM! %+d POINTS!" % rock.pts, pygame.Color(0, 255, 0))
             else:
                 self.setstatus("ANALYZING ROCK! %+d POINTS!" % rock.pts, pygame.Color(0, 255, 0))
             self.addpoints(rock.pts)
@@ -572,6 +604,8 @@ class Game(object):
         self.rocks.remove(rock)
         if self.curr_rock.panel:
             self.clawtxt = self.mktext("GOT PANEL")
+        elif self.curr_rock.panel:
+            self.clawtxt = self.mktext("HOLDING GEM")
         else:
             self.clawtxt = self.mktext("HOLDING ROCK")
 
@@ -591,8 +625,12 @@ class Game(object):
             self.setmsg("WHAT IS THAT LIGHT!?")
             self.signal_placed = 1
             self.ship_ending = True
+        elif self.curr_rock.panel:
+            self.setstatus("DROPPED THE PANEL", WHITE)
+        elif self.curr_rock.gem:
+            self.setstatus("DROPPED THE GEM", WHITE)
         else:
-            self.setstatus("DROPPED THE ROCK", pygame.Color(255, 255, 255))
+            self.setstatus("DROPPED THE ROCK", WHITE)
 
         self.curr_rock = None
 
@@ -658,7 +696,7 @@ class Game(object):
                 pygame.gfxdraw.box(self.map.img, self.door_rect, color)
 
         if self.signal_placed and not self.ship_summoned:
-            print self.signal_placed
+            #print self.signal_placed
             if self.signal_placed > 100:
                 self.ship_summoned = True
             self.signal_placed += 1
@@ -729,7 +767,7 @@ class Game(object):
         self.clock = pygame.time.Clock()
 
         self.draw()
-        self.draw_banner()
+        #self.draw_banner()
         pygame.display.flip()
 
         while self.banner:
@@ -737,6 +775,10 @@ class Game(object):
             for ev in pygame.event.get():
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_RETURN:
                     self.banner = False
+                    break
+                if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
+                    self.banner = False
+                    self.done = True
                     break
 
         self.setstatus("DEPLOY CLAW WHEN OVER ROCKS")
@@ -754,6 +796,7 @@ class Game(object):
                     alpha -= 2
                     self.map.img.set_alpha(alpha)
                     self.draw_map()
+                    self.draw_rover()
                 else:
                     self.screen.blit(self.door_text0, (10, 90))
                     self.screen.blit(self.door_text1, (30, 190))
@@ -768,7 +811,6 @@ class Game(object):
                     alpha -= 2
                     self.map.img.set_alpha(alpha)
                     self.draw_map()
-                    self.curr_rover_img.set_alpha(alpha)
                     self.draw_rover()
                 else:
                     self.screen.blit(self.ship_text0, (10, 90))
@@ -777,6 +819,22 @@ class Game(object):
                     self.screen.blit(self.ship_text3, (20, 320))
                     self.screen.blit(self.ship_text4, (20, 370))
                     self.screen.blit(self.ship_text5, (150, 490))
+
+
+            elif self.points_ending:
+                pygame.gfxdraw.box(self.screen, self.get_map_screen_rect(), self.map.light)
+                if alpha > 0:
+                    alpha -= 2
+                    self.map.img.set_alpha(alpha)
+                    self.draw_map()
+                    self.draw_rover()
+                else:
+                    self.screen.blit(self.pts_text0, (10, 90))
+                    self.screen.blit(self.pts_text1, (30, 190))
+                    self.screen.blit(self.pts_text2, (30, 240))
+                    self.screen.blit(self.pts_text3, (20, 320))
+                    self.screen.blit(self.pts_text4, (20, 370))
+                    self.screen.blit(self.pts_text5, (150, 490))
 
             else:
                 self.check_ambient_msg()
@@ -871,9 +929,12 @@ if __name__ == "__main__":
     pygame.font.init()
     pygame.mixer.init(frequency=44100)
 
-    #flags = pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.FULLSCREEN
-    flags = pygame.HWSURFACE | pygame.DOUBLEBUF
-    screen = pygame.display.set_mode((PIXEL_WIDTH, PIXEL_HEIGHT), flags)
+    flags = pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.FULLSCREEN
+    fullscreen = True
 
-    g = Game(screen, False)
+    #flags = pygame.HWSURFACE | pygame.DOUBLEBUF
+    #fullscreen = False
+
+    screen = pygame.display.set_mode((PIXEL_WIDTH, PIXEL_HEIGHT), flags)
+    g = Game(screen, fullscreen)
     g.run()
