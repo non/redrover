@@ -11,5 +11,9 @@ by Erik Osheim
 Requires Python and Pygame. Play the game by running ./play or using python to
 run src/game.py.
 
-Use arrow keys to move the rover, space to pick up (and drop) rocks to analyze.
-Held rocks may also be pulverized using the control key.
+Controls:
+    arrow keys - movement
+    space      - use claw to pick up or put down rocks
+    control    - destroy rock currently being held
+    tab        - toggle full screen
+    +/-        - increase/decrease music volume

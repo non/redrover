@@ -780,6 +780,10 @@ class Game(object):
                     self.banner = False
                     self.done = True
                     break
+                if ev.type == pygame.KEYDOWN and ev.key == pygame.K_TAB:
+                    self.toggle_fullscreen()
+                    self.draw()
+                    pygame.display.flip()
 
         self.setstatus("DEPLOY CLAW WHEN OVER ROCKS")
 
